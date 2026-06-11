@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>영어 단어 게임</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Segoe UI', 'Malgun Gothic', sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+
+  .card {
+    background: #fff;
+    border-radius: 20px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    width: 100%;
+    max-width: 480px;
+    padding: 36px 32px;
+    text-align: center;
+  }
+
+  h1 { font-size: 1.6rem; color: #333; margin-bottom: 8px; }
+  .subtitle { color: #888; font-size: 0.9rem; margin-bottom: 24px; }
+
+  .status {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 16px;
+    font-size: 0.95rem;
+    color: #555;
+    font-weight: 600;
+  }
+
+  .timer-bar {
+    height: 8px;
+    background: #eee;
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 24px;
+  }
+  .timer-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #43e97b, #38f9d7);
+    width: 100%;
+    transition: width 0.1s linear;
+  }
+  .timer-fill.warning { background: linear-gradient(90deg, #fa709a, #fee140); }
+
+  .question {
+    font-size: 2.2rem;
+    font-weight: 700;
+    color: #333;
+    margin-bottom: 28px;
+    min-height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .options { display: grid; gap: 12px; }
+
+  .option {
+    padding: 16px;
+    font-size: 1.1rem;
+    font-weight: 600;
+    border: 2px solid #e0e0e0;
+    border-radius: 12px;
+    background: #fafafa;
+    color: #333;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .option:hover:not(:disabled) {
+    border-color: #667eea;
+    background: #f0f2ff;
+    transform: translateY(-2px);
+  }
+  .option:disabled { cursor: default; }
+  .option.correct { background: #d4f8e0; border-color: #43e97b; color: #1a7a3c; }
+  .option.wrong { background: #ffe0e6; border-color: #fa709a; color: #c0274e; }
+
+  .feedback {
+    margin-top: 20px;
+    font-size: 1.05rem;
+    font-weight: 600;
+    min-height: 28px;
+  }
+  .feedback.good { color: #1a9e4b; }
+  .feedback.bad { color: #e0436b; }
+
+  .btn {
+    margin-top: 24px;
+    padding: 14px 40px;
+    font-size: 1.1rem;
+    font-weight: 700;
+    border: none;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: #fff;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+  }
+  .btn:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(102,126,234,0.4); }
+
+  .result-score {
+    font-size: 3rem;
+    font-weight: 800;
+    color: #667eea;
+    margin: 16px 0;
+  }
+  .result-msg { color: #666; font-size: 1.1rem; margin-bottom: 8px; }
+
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <!-- 시작 화면 -->
+  <div id="start-screen">
+    <h1>🎯 영어 단어 게임</h1>
+    <p class="subtitle">한국어 뜻을 보고 알맞은 영어 단어를 고르세요!<br>총 10문제, 문제당 10초</p>
+    <button class="btn" onclick="startGame()">게임 시작</button>
+  </div>
+
+  <!-- 게임 화면 -->
+  <div id="game-screen" class="hidden">
+    <div class="status">
+      <span id="progress">1 / 10</span>
+      <span id="score">점수: 0</span>
+    </div>
+    <div class="timer-bar"><div id="timer-fill" class="timer-fill"></div></div>
+    <div class="question" id="question"></div>
+    <div class="options" id="options"></div>
+    <div class="feedback" id="feedback"></div>
+  </div>
+
+  <!-- 결과 화면 -->
+  <div id="result-screen" class="hidden">
+    <h1>🏆 게임 종료!</h1>
+    <div class="result-score" id="final-score"></div>
+    <p class="result-msg" id="result-msg"></p>
+    <p class="subtitle" id="result-detail"></p>
+    <button class="btn" onclick="startGame()">다시 하기</button>
+  </div>
+</div>
+
+<script>
+const WORDS = [
+  { en: 'apple',     ko: '사과' },
+  { en: 'book',      ko: '책' },
+  { en: 'water',     ko: '물' },
+  { en: 'friend',    ko: '친구' },
+  { en: 'school',    ko: '학교' },
+  { en: 'happy',     ko: '행복한' },
+  { en: 'morning',   ko: '아침' },
+  { en: 'family',    ko: '가족' },
+  { en: 'weather',   ko: '날씨' },
+  { en: 'travel',    ko: '여행' },
+  { en: 'kitchen',   ko: '부엌' },
+  { en: 'window',    ko: '창문' },
+  { en: 'beautiful', ko: '아름다운' },
+  { en: 'question',  ko: '질문' },
+  { en: 'answer',    ko: '대답' },
+  { en: 'dream',     ko: '꿈' },
+  { en: 'health',    ko: '건강' },
+  { en: 'music',     ko: '음악' },
+  { en: 'animal',    ko: '동물' },
+  { en: 'flower',    ko: '꽃' },
+  { en: 'winter',    ko: '겨울' },
+  { en: 'library',   ko: '도서관' },
+  { en: 'umbrella',  ko: '우산' },
+  { en: 'mountain',  ko: '산' },
+  { en: 'birthday',  ko: '생일' },
+  { en: 'teacher',   ko: '선생님' },
+  { en: 'delicious', ko: '맛있는' },
+  { en: 'exercise',  ko: '운동' },
+  { en: 'vegetable', ko: '채소' },
+  { en: 'holiday',   ko: '휴일' },
+];
+
+const TOTAL_QUESTIONS = 10;
+const TIME_LIMIT = 10; // 초
+
+let quiz = [];       // 이번 게임의 문제 목록
+let current = 0;     // 현재 문제 번호
+let score = 0;
+let correctCount = 0;
+let timerId = null;
+let timeLeft = 0;
+
+const $ = id => document.getElementById(id);
+
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function startGame() {
+  quiz = shuffle(WORDS).slice(0, TOTAL_QUESTIONS);
+  current = 0;
+  score = 0;
+  correctCount = 0;
+
+  $('start-screen').classList.add('hidden');
+  $('result-screen').classList.add('hidden');
+  $('game-screen').classList.remove('hidden');
+
+  showQuestion();
+}
+
+function showQuestion() {
+  const word = quiz[current];
+
+  $('progress').textContent = `${current + 1} / ${TOTAL_QUESTIONS}`;
+  $('score').textContent = `점수: ${score}`;
+  $('question').textContent = word.ko;
+  $('feedback').textContent = '';
+  $('feedback').className = 'feedback';
+
+  // 오답 보기 3개 + 정답 1개
+  const wrongs = shuffle(WORDS.filter(w => w.en !== word.en)).slice(0, 3);
+  const choices = shuffle([word, ...wrongs]);
+
+  const box = $('options');
+  box.innerHTML = '';
+  choices.forEach(c => {
+    const btn = document.createElement('button');
+    btn.className = 'option';
+    btn.textContent = c.en;
+    btn.onclick = () => answer(btn, c.en === word.en);
+    box.appendChild(btn);
+  });
+
+  startTimer();
+}
+
+function startTimer() {
+  clearInterval(timerId);
+  timeLeft = TIME_LIMIT * 10; // 0.1초 단위
+  updateTimerBar();
+
+  timerId = setInterval(() => {
+    timeLeft--;
+    updateTimerBar();
+    if (timeLeft <= 0) {
+      clearInterval(timerId);
+      timeOut();
+    }
+  }, 100);
+}
+
+function updateTimerBar() {
+  const pct = (timeLeft / (TIME_LIMIT * 10)) * 100;
+  const fill = $('timer-fill');
+  fill.style.width = pct + '%';
+  fill.classList.toggle('warning', pct <= 30);
+}
+
+function disableOptions() {
+  document.querySelectorAll('.option').forEach(b => b.disabled = true);
+}
+
+function answer(btn, isCorrect) {
+  clearInterval(timerId);
+  disableOptions();
+
+  const word = quiz[current];
+
+  if (isCorrect) {
+    btn.classList.add('correct');
+    // 남은 시간에 비례한 보너스 점수
+    const bonus = Math.ceil(timeLeft / 10);
+    score += 10 + bonus;
+    correctCount++;
+    $('feedback').textContent = `정답! +${10 + bonus}점`;
+    $('feedback').classList.add('good');
+  } else {
+    btn.classList.add('wrong');
+    highlightCorrect(word.en);
+    $('feedback').textContent = `오답! 정답은 "${word.en}"`;
+    $('feedback').classList.add('bad');
+  }
+
+  $('score').textContent = `점수: ${score}`;
+  setTimeout(nextQuestion, 1300);
+}
+
+function timeOut() {
+  disableOptions();
+  const word = quiz[current];
+  highlightCorrect(word.en);
+  $('feedback').textContent = `시간 초과! 정답은 "${word.en}"`;
+  $('feedback').classList.add('bad');
+  setTimeout(nextQuestion, 1300);
+}
+
+function highlightCorrect(en) {
+  document.querySelectorAll('.option').forEach(b => {
+    if (b.textContent === en) b.classList.add('correct');
+  });
+}
+
+function nextQuestion() {
+  current++;
+  if (current < TOTAL_QUESTIONS) {
+    showQuestion();
+  } else {
+    showResult();
+  }
+}
+
+function showResult() {
+  $('game-screen').classList.add('hidden');
+  $('result-screen').classList.remove('hidden');
+
+  $('final-score').textContent = `${score}점`;
+  $('result-detail').textContent = `${TOTAL_QUESTIONS}문제 중 ${correctCount}문제 정답`;
+
+  let msg;
+  if (correctCount === TOTAL_QUESTIONS) msg = '완벽해요! 영어 천재! 🌟';
+  else if (correctCount >= 7) msg = '훌륭해요! 조금만 더! 👏';
+  else if (correctCount >= 4) msg = '좋아요! 연습하면 더 잘할 수 있어요 💪';
+  else msg = '괜찮아요, 다시 도전해 보세요! 🔥';
+
+  $('result-msg').textContent = msg;
+}
+</script>
+
+</body>
+</html>
